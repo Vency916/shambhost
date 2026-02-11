@@ -76,9 +76,38 @@ class VercelOrchestrator
      */
     public function triggerDeployment()
     {
-        // In a real Vercel integration, we would likely need to specific the Git Source
-        // or use a Deploy Hook. For this MVP, we attempt a generic deploy request
-        // which often assumes the connected Git repo.
+        // 1. Fetch latest deployment to get Git Metadata and Name
+        $latest = $this->getDeployments(1);
+        
+        $payload = [
+            'name' => 'shambhost-auto-trigger',
+            'project' => $this->projectId,
+            'target' => 'production',
+        ];
+
+        if (!empty($latest['deployments'][0])) {
+            $lastDeployment = $latest['deployments'][0];
+            
+            // Reuse Git Source if available (Critical for Git-connected projects)
+            if (isset($lastDeployment['meta']['githubCommitRef'])) {
+               // Vercel sometimes puts git info in meta
+               $payload['gitSource'] = [
+                   'type' => 'github',
+                   'ref' => $lastDeployment['meta']['githubCommitRef'],
+                   'repoId' => $lastDeployment['meta']['githubRepoId'] ?? null,
+                   'sha' => $lastDeployment['meta']['githubCommitSha'] ?? null,
+               ];
+            } elseif (isset($lastDeployment['gitSource'])) {
+                // Or directly in gitSource object
+                $payload['gitSource'] = $lastDeployment['gitSource'];
+            }
+            
+            // Reuse name to keep project grouping clean
+            if (isset($lastDeployment['name'])) {
+                $payload['name'] = $lastDeployment['name'];
+            }
+        }
+
         return Http::withoutVerifying()
             ->timeout(60)
             ->withOptions([
@@ -86,11 +115,7 @@ class VercelOrchestrator
                 'force_ip_resolve' => 'v4',
             ])
             ->withToken($this->token)
-            ->post("{$this->baseUrl}/v13/deployments", [
-                'project' => $this->projectId,
-                'target' => 'production', 
-                'name' => 'shambhost-auto-trigger',
-            ]);
+            ->post("{$this->baseUrl}/v13/deployments", $payload);
     }
 
     /**
