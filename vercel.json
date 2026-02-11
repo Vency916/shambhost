@@ -3,7 +3,6 @@
     "framework": null,
     "outputDirectory": ".",
     "functions": {
-        "api/index.php": { "runtime": "vercel-php@0.6.0" },
         "public/index.php": { "runtime": "vercel-php@0.6.0" }
     },
     "routes": [
